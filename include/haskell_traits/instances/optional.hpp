@@ -28,12 +28,29 @@ HASKELL_TRAITS_BEGIN
     };
 
     template<typename T>
-    struct monad_impl<std::optional<T>>
+    struct applicative_impl<std::optional<T>>
     {
         template<typename U, REQUIRES(std::is_same_v<uncvref<U>, T>)>
-        constexpr static std::optional<T>
-        mreturn(U&& u) NOEXCEPT_RETURNS(std::optional<T>((U &&) u));
+        constexpr static std::optional<T> apure(U&& u) NOEXCEPT_RETURNS(std::optional<T>((U &&) u));
 
+        template<typename U,
+                 typename F,
+                 REQUIRES(std::is_same_v<uncvref<U>, std::optional<T>>&& same_template<F, U>),
+                 REQUIRES(callable<as_same_cvref<bound_to<F>, F>, as_same_cvref<bound_to<U>, U>>),
+                 typename Result = std::optional<
+                     result_t<as_same_cvref<bound_to<F>, F>, as_same_cvref<bound_to<U>, U>>>>
+        constexpr static Result
+        aapply(U&& u, F&& f) noexcept(noexcept(Result(std::invoke(*(F&&)f, *(U&&)u))))
+        {
+            if (u && f)
+                return std::invoke(*(F &&) f, *(U &&) u);
+            return std::nullopt;
+        }
+    };
+
+    template<typename T>
+    struct monad_impl<std::optional<T>>
+    {
         template<typename U, typename F, REQUIRES(std::is_same_v<std::optional<T>, uncvref<U>>)>
         constexpr static result_t<F&&, as_same_cvref<T, U&&>>
         mbind(U&& u, F&& f) noexcept(noexcept(std::invoke((F &&) f, *(U&&)u)))

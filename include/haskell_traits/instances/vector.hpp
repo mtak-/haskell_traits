@@ -26,9 +26,38 @@ HASKELL_TRAITS_BEGIN
         static Result fmap(U&& u, F&& f)
         {
             using CVRefElem = as_same_cvref<T, U&&>;
-            Result result;
+            Result result(typename Result::allocator_type(u.get_allocator()));
+            result.reserve(u.size());
             for (auto&& elem : u)
                 result.push_back(std::invoke(f, static_cast<CVRefElem>(elem)));
+            return result;
+        }
+    };
+
+    template<typename T, typename Alloc>
+    struct applicative_impl<std::vector<T, Alloc>>
+    {
+        template<typename U, REQUIRES(std::is_same_v<uncvref<U>, T>)>
+        static std::vector<T, Alloc> apure(U&& u)
+        {
+            std::vector<T> t;
+            t.push_back((U &&) u);
+            return t;
+        }
+
+        template<typename U,
+                 typename F,
+                 REQUIRES(std::is_same_v<uncvref<U>, std::vector<T, Alloc>>&& same_template<F, U>),
+                 REQUIRES(callable<as_same_cvref<bound_to<F>, F&>, as_same_cvref<bound_to<U>, U&>>),
+                 typename Result
+                 = rebind<uncvref<U>,
+                          result_t<as_same_cvref<bound_to<F>, F&>, as_same_cvref<bound_to<U>, U&>>>>
+        static Result aapply(U&& us, F&& fs)
+        {
+            Result result;
+            for (auto&& f : fs)
+                for (auto&& u : us)
+                    result.push_back(std::invoke(f, u));
             return result;
         }
     };
@@ -36,14 +65,6 @@ HASKELL_TRAITS_BEGIN
     template<typename T, typename... Args>
     struct monad_impl<std::vector<T, Args...>>
     {
-        template<typename U, REQUIRES(std::is_same_v<uncvref<U>, T>)>
-        static std::vector<T, Args...> mreturn(U&& u)
-        {
-            std::vector<T> t;
-            t.push_back((U &&) u);
-            return t;
-        }
-
         template<typename U,
                  typename F,
                  REQUIRES(std::is_same_v<std::vector<T, Args...>, uncvref<U>>)>

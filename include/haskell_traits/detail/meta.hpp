@@ -31,6 +31,18 @@ HASKELL_TRAITS_BEGIN
     template<typename T>
     using uncvref = std::remove_cv_t<std::remove_reference_t<T>>;
 
+    template<typename T>
+    using _t = typename T::type;
+
+    template<typename T>
+    struct id
+    {
+        using type = T;
+    };
+
+    template<typename T>
+    using id_t = _t<id<T>>;
+
     template<typename T, typename As>
     using as_same_const = std::conditional_t<std::is_const<As>::value, std::add_const_t<T>, T>;
 
@@ -86,10 +98,10 @@ HASKELL_TRAITS_BEGIN
         typename detail::detector<nonesuch, void, Op, Args...>::value_t{};
 
     template<template<class...> class Op, class... Args>
-    using detected_t = typename detail::detector<nonesuch, void, Op, Args...>::type;
+    using detected_t = _t<detail::detector<nonesuch, void, Op, Args...>>;
 
     template<class Default, template<class...> class Op, class... Args>
-    using detected_or = detail::detector<Default, void, Op, Args...>;
+    using detected_or = _t<detail::detector<Default, void, Op, Args...>>;
 
     template<typename F, typename... Args>
     using callable_ = decltype(std::invoke(std::declval<F>(), std::declval<Args>()...));
@@ -112,8 +124,8 @@ HASKELL_TRAITS_BEGIN
     };
 
     template<typename F, typename... Args>
-    inline constexpr auto noexcept_callable =
-        typename noexcept_callable_<callable<F, Args...>, F, Args...>::type{};
+    inline constexpr auto noexcept_callable
+        = _t<noexcept_callable_<callable<F, Args...>, F, Args...>>{};
 
     template<template<typename...> typename F, typename G, typename = void>
     struct instantiation_of_ : std::false_type
@@ -122,12 +134,12 @@ HASKELL_TRAITS_BEGIN
 
     template<template<typename...> typename F, template<typename> typename G, typename... Args>
     struct instantiation_of_<F, G<Args...>, std::void_t<F<Args...>>>
-        : std::is_same<F<Args...>, G<Args...>>::type
+        : _t<std::is_same<F<Args...>, G<Args...>>>
     {
     };
 
     template<template<typename...> typename F, typename G>
-    inline constexpr auto instantiation_of = typename instantiation_of_<F, uncvref<G>>::type{};
+    inline constexpr auto instantiation_of = _t<instantiation_of_<F, uncvref<G>>>{};
 
     template<typename F, typename G>
     struct same_template_ : std::false_type
@@ -140,13 +152,17 @@ HASKELL_TRAITS_BEGIN
     };
 
     template<typename F, typename G>
-    inline constexpr auto same_template = typename same_template_<uncvref<F>, uncvref<G>>::type{};
+    inline constexpr auto same_template = _t<same_template_<uncvref<F>, uncvref<G>>>{};
 
     template<typename R, typename T>
     R unary_func(T) noexcept;
 
     template<typename R, typename T>
     using unary_func_t = decltype(&unary_func<R, T>);
+
+    template<template<typename...> typename Desired, typename... Ts>
+    using detected_or_unary_nonesuch_t
+        = detected_or<unary_func_t<nonesuch2, nonesuch2>, Desired, Ts...>;
 HASKELL_TRAITS_END
 
 #endif /* HASKELL_TRAITS_DETAIL_META_HPP */

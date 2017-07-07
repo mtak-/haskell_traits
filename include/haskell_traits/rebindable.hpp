@@ -24,12 +24,18 @@ HASKELL_TRAITS_DETAIL_BEGIN
     template<typename T, typename U>
     using rebindable_ = std::enable_if_t<
         same_template<rebind<T, U>, T> && std::is_same_v<bound_to<rebind<T, U>>, U>>;
+
+    template<typename T, typename Bound>
+    using is_bound_to_ = std::enable_if_t<std::is_same_v<uncvref<Bound>, uncvref<bound_to<T>>>>;
 HASKELL_TRAITS_DETAIL_END
 
 HASKELL_TRAITS_BEGIN
     template<typename T, typename U = nonesuch2>
     inline constexpr auto rebindable
         = std::bool_constant<is_detected<detail::rebindable_, T, U> && is_detected<bound_to, T>>{};
+
+    template<typename T, typename Bound>
+    inline constexpr auto is_bound_to = is_detected<detail::is_bound_to_, T, Bound>;
 HASKELL_TRAITS_END
 
 #define REBINDABLE_ASSERTS(...)                                                                    \
