@@ -295,7 +295,8 @@ HASKELL_TRAITS_BEGIN
         operator()(Args&&... args) const && noexcept(
             noexcept(T(std::declval<const_rvalue_ref>().template operator()<T>((Args &&) args...))))
         {
-            return std::move(static_cast<const_lvalue_ref>(*this)).template operator()<T>();
+            return std::move(static_cast<const_lvalue_ref>(*this))
+                .template operator()<T>((Args &&) args...);
         }
     };
 
