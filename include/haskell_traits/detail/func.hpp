@@ -100,7 +100,7 @@ HASKELL_TRAITS_BEGIN
         static_assert((instantiation_of<func, Funcs> && ...));
         static_assert((!std::is_reference_v<Funcs> && ...));
 
-        template<typename... Funcs_In>
+        template<typename... Funcs_In, REQUIRES(sizeof...(Funcs) == sizeof...(Funcs_In))>
         constexpr merged(Funcs_In&&... funcs) noexcept(
             (std::is_nothrow_constructible_v<Funcs, Funcs_In&&> && ...))
             : Funcs((Funcs_In &&) funcs)...
