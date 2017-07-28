@@ -67,6 +67,9 @@ HASKELL_TRAITS_BEGIN
     template<typename F>
     struct func : private detail::func_impl<F>
     {
+        static_assert(!std::is_reference_v<F>);
+        static_assert(!instantiation_of<haskell_traits::func, F>);
+
         using underlying_t = F;
 
         using detail::func_impl<F>::func_impl;
@@ -81,15 +84,37 @@ HASKELL_TRAITS_BEGIN
     template<typename F>
     using func_t = decltype(func{std::declval<F>()});
 
-// template<typename F, REQUIRES(!instantiation_of<func, F>)>
-// constexpr func<uncvref<F>> make_func(F && f) NOEXCEPT_RETURNS(func<uncvref<F>>((F &&) f));
-//
-// template<typename F, REQUIRES(instantiation_of<func, F>)>
-// constexpr func<typename uncvref<F>::underlying_t> make_func(F && f)
-//     NOEXCEPT_RETURNS(func<typename uncvref<F>::underlying_t>((F &&) f));
-//
-// template<typename F>
-// using func_t = decltype(make_func(std::declval<F>()));
+    // template<typename F, REQUIRES(!instantiation_of<func, F>)>
+    // constexpr func<uncvref<F>> make_func(F && f) NOEXCEPT_RETURNS(func<uncvref<F>>((F &&) f));
+    //
+    // template<typename F, REQUIRES(instantiation_of<func, F>)>
+    // constexpr func<typename uncvref<F>::underlying_t> make_func(F && f)
+    //     NOEXCEPT_RETURNS(func<typename uncvref<F>::underlying_t>((F &&) f));
+    //
+    // template<typename F>
+    // using func_t = decltype(make_func(std::declval<F>()));
+
+    template<typename... Funcs>
+    struct merged : private Funcs...
+    {
+        static_assert((instantiation_of<func, Funcs> && ...));
+        static_assert((!std::is_reference_v<Funcs> && ...));
+
+        template<typename... Funcs_In>
+        constexpr merged(Funcs_In&&... funcs) noexcept(
+            (std::is_nothrow_constructible_v<Funcs, Funcs_In&&> && ...))
+            : Funcs((Funcs_In &&) funcs)...
+        {
+        }
+
+        using Funcs::operator()...;
+    };
+
+    template<typename... Funcs>
+    merged(Funcs && ...)->merged<func_t<Funcs&&>...>;
+
+    template<typename... Funcs>
+    using merged_t = decltype(merged{std::declval<Funcs>()...});
 HASKELL_TRAITS_END
 
 #endif /* HASKELL_TRAITS_DETAIL_FUNC_HPP */

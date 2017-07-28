@@ -24,11 +24,15 @@ HASKELL_TRAITS_BEGIN
     template<typename T, typename F>
     inline constexpr auto fmappable = is_detected<detail::fmappable_, T, F>;
 
-    template<typename T,
-             typename F,
-             REQUIRES(fmappable<T&&, F&&>),
-             typename Impl = functor_impl<uncvref<T>>>
-    constexpr auto fmap(T && t, F && f) DECLTYPE_NOEXCEPT_RETURNS(Impl::fmap((T &&) t, (F &&) f));
+    struct fmap_fn
+    {
+        template<typename T,
+                 typename F,
+                 REQUIRES(fmappable<T&&, F&&>),
+                 typename Impl = functor_impl<uncvref<T>>>
+        constexpr auto
+        operator()(T&& t, F&& f) const DECLTYPE_NOEXCEPT_RETURNS(Impl::fmap((T &&) t, (F &&) f));
+    } inline constexpr fmap{};
 HASKELL_TRAITS_END
 
 HASKELL_TRAITS_DETAIL_BEGIN

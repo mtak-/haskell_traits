@@ -19,6 +19,9 @@ HASKELL_TRAITS_BEGIN
     template<typename L>
     struct lazy : private func_t<L>
     {
+        static_assert(!std::is_reference_v<L>);
+        static_assert(!instantiation_of<haskell_traits::lazy, L>);
+
     private:
         using lvalue_ref       = func_t<L>&;
         using const_lvalue_ref = const func_t<L>&;

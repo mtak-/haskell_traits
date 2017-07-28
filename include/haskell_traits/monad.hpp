@@ -38,11 +38,15 @@ HASKELL_TRAITS_BEGIN
     inline constexpr auto mbindable = std::bool_constant<
         mbind_returns_correct_template<T, F> && mbind_returns_correct_type<T, F>>{};
 
-    template<typename T,
-             typename F,
-             REQUIRES(mbindable<T&&, F&&>),
-             typename Impl = monad_impl<uncvref<T>>>
-    constexpr auto mbind(T && t, F && f) DECLTYPE_NOEXCEPT_RETURNS(Impl::mbind((T &&) t, (F &&) f));
+    struct mbind_fn
+    {
+        template<typename T,
+                 typename F,
+                 REQUIRES(mbindable<T&&, F&&>),
+                 typename Impl = monad_impl<uncvref<T>>>
+        constexpr auto
+        operator()(T&& t, F&& f) const DECLTYPE_NOEXCEPT_RETURNS(Impl::mbind((T &&) t, (F &&) f));
+    } inline constexpr mbind{};
 HASKELL_TRAITS_END
 
 HASKELL_TRAITS_DETAIL_BEGIN

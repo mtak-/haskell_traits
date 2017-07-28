@@ -74,22 +74,32 @@ HASKELL_TRAITS_DETAIL_BEGIN
 HASKELL_TRAITS_DETAIL_END
 
 HASKELL_TRAITS_BEGIN
-    template<typename T,
-             typename U,
-             REQUIRES(apurable<T> && is_bound_to<T, U>),
-             typename Impl = applicative_impl<uncvref<T>>>
-    constexpr auto apure_strict(U && u) DECLTYPE_NOEXCEPT_RETURNS(Impl::apure((U &&) u));
+    struct apure_strict_fn
+    {
+        template<typename T,
+                 typename U,
+                 REQUIRES(apurable<T>&& is_bound_to<T, U>),
+                 typename Impl = applicative_impl<uncvref<T>>>
+        constexpr auto operator()(U&& u) const DECLTYPE_NOEXCEPT_RETURNS(Impl::apure((U &&) u));
+    } inline constexpr apure_strict{};
 
-    template<typename U, REQUIRES(std::is_constructible_v<detail::apure_helper<uncvref<U>>, U&&>)>
-    constexpr lazy_t<detail::apure_helper<uncvref<U>>&&> apure(U && u)
-        NOEXCEPT_RETURNS(lazy(detail::apure_helper<uncvref<U>>((U &&) u)));
+    struct apure_fn
+    {
+        template<typename U,
+                 REQUIRES(std::is_constructible_v<detail::apure_helper<uncvref<U>>, U&&>)>
+        constexpr lazy_t<detail::apure_helper<uncvref<U>>&&>
+        operator()(U&& u) const NOEXCEPT_RETURNS(lazy(detail::apure_helper<uncvref<U>>((U &&) u)));
+    } inline constexpr apure{};
 
-    template<typename T,
-             typename F,
-             REQUIRES(aapplyable<T&&, F&&>),
-             typename Impl = applicative_impl<uncvref<T>>>
-    constexpr auto aapply(T && t, F && f)
-        DECLTYPE_NOEXCEPT_RETURNS(Impl::aapply((T &&) t, (F &&) f));
+    struct aapply_fn
+    {
+        template<typename T,
+                 typename F,
+                 REQUIRES(aapplyable<T&&, F&&>),
+                 typename Impl = applicative_impl<uncvref<T>>>
+        constexpr auto
+        operator()(T&& t, F&& f) const DECLTYPE_NOEXCEPT_RETURNS(Impl::aapply((T &&) t, (F &&) f));
+    } inline constexpr aapply{};
 HASKELL_TRAITS_END
 
 HASKELL_TRAITS_DETAIL_BEGIN
