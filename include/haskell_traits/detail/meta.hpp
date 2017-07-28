@@ -20,7 +20,16 @@
     HASKELL_TRAITS_END                                                                             \
     }
 
-#define REQUIRES(...) std::enable_if_t<(__VA_ARGS__), int> = 42
+#define PP_CONCAT(a, ...) _PP_CONCAT(a, __VA_ARGS__)
+#define _PP_CONCAT(a, ...) a##__VA_ARGS__
+
+#define REQUIRES(...)                                                                              \
+    int PP_CONCAT(__concept_check, __LINE__)                                                       \
+        = 42,                                                                                      \
+        std::enable_if_t < PP_CONCAT(__concept_check, __LINE__) == 43 || (__VA_ARGS__), int > = 42
+
+#define REQUIRESF(...) std::enable_if_t<(__VA_ARGS__), int> = 42
+
 #define REQUIRES_(...) std::enable_if_t<(__VA_ARGS__)>
 #define NOEXCEPT_RETURNS(...)                                                                      \
     noexcept(noexcept(__VA_ARGS__)) { return __VA_ARGS__; }

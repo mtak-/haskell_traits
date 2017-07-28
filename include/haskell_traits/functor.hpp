@@ -1,6 +1,7 @@
 #ifndef HASKELL_TRAITS_FUNCTOR_HPP
 #define HASKELL_TRAITS_FUNCTOR_HPP
 
+#include <haskell_traits/lazy.hpp>
 #include <haskell_traits/rebindable.hpp>
 
 HASKELL_TRAITS_BEGIN

@@ -1,5 +1,6 @@
 #include <haskell_traits/instances/optional.hpp>
 #include <haskell_traits/instances/vector.hpp>
+#include <haskell_traits/lazy.hpp>
 
 #include "simple_test.hpp"
 
@@ -46,17 +47,44 @@ template<typename G, REQUIRES(ht::monad_of<G, int>)>
 auto bindShowInt(G&& g)
 {
     using rebound = ht::uncvref<ht::rebind<G, std::string>>;
-    return ht::mbind(g,
-                     [](int x) -> rebound { return ht::apure_strict<rebound>(std::to_string(x)); });
+    return ht::mbind(g, [](int x) -> rebound { return ht::apure(std::to_string(x)); });
 }
 
 template<typename G, REQUIRES(ht::monad<G>)>
 auto bindShowSizeof(G&& g)
 {
     using rebound = ht::uncvref<ht::rebind<G, std::string>>;
-    return ht::mbind(g, [](const auto& x) -> rebound {
-        return ht::apure_strict<rebound>(std::to_string(sizeof(x)));
-    });
+    return ht::mbind(g,
+                     [](const auto& x) -> rebound { return ht::apure(std::to_string(sizeof(x))); });
+}
+
+struct bz
+{
+    template<typename T, REQUIRES(std::is_same_v<T, int>)>
+    T operator()() const &&
+    {
+        return T{};
+    }
+};
+
+void test3()
+{
+    const auto       l = ht::lazy(bz{});
+    int              v = std::move(l);
+    std::vector<int> u = ht::apure(v);
+    CHECK(u == std::vector<int>{0});
+
+    std::shared_ptr<int>                x{new int{5}};
+    auto                                y = ht::apure(std::move(x));
+    std::optional<std::shared_ptr<int>> m(y);
+    std::optional<std::shared_ptr<int>> z(std::move(y));
+    std::optional<std::shared_ptr<int>> w(std::move(y));
+    CHECK(z != std::nullopt);
+    CHECK(**z == 5);
+    CHECK(x == nullptr);
+    CHECK(*w == nullptr);
+    CHECK(*m != nullptr);
+    CHECK(**m == 5);
 }
 
 void test()
@@ -83,6 +111,12 @@ void test()
     std::vector<std::unique_ptr<int>> z{};
 }
 
+auto fIntToString = [](auto x, REQUIRESF(ht::functor_of<decltype(x), int>)) {
+    return ht::fmap(x, [](const int y) { return std::to_string(y); });
+};
+
+auto z = fIntToString(std::vector<int>{1});
+
 void test2()
 {
     std::optional<int>         x{4};
@@ -107,5 +141,6 @@ int main()
 {
     test();
     test2();
+    test3();
     return test_result();
 }

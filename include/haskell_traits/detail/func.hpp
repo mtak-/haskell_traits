@@ -10,7 +10,7 @@ HASKELL_TRAITS_DETAIL_BEGIN
         using underlying_t = F;
 
         template<typename... Args, REQUIRES(std::is_constructible_v<F, Args&&...>)>
-        func_impl(Args&&... args) noexcept(std::is_nothrow_constructible_v<F, Args&&...>)
+        constexpr func_impl(Args&&... args) noexcept(std::is_nothrow_constructible_v<F, Args&&...>)
             : F((Args &&) args...)
         {
         }
@@ -27,34 +27,35 @@ HASKELL_TRAITS_DETAIL_BEGIN
         using underlying_t = F;
 
         template<typename... Args, REQUIRES(std::is_constructible_v<F, Args&&...>)>
-        func_impl(Args&&... args) noexcept(std::is_nothrow_constructible_v<F, Args&&...>)
+        constexpr func_impl(Args&&... args) noexcept(std::is_nothrow_constructible_v<F, Args&&...>)
             : f((Args &&) args...)
         {
         }
 
+        // TODO: add support for finals class types taking explicit template parameters
         template<typename... Args, REQUIRES(callable<F&, Args...>)>
-            result_t<F&, Args&&...>
+            constexpr result_t<F&, Args&&...>
             operator()(Args&&... args) & noexcept(noexcept_callable<F&, Args&&...>)
         {
             return std::invoke(f, (Args &&) args...);
         }
 
         template<typename... Args, REQUIRES(callable<const F&, Args...>)>
-        result_t<const F&, Args&&...>
+        constexpr result_t<const F&, Args&&...>
         operator()(Args&&... args) const & noexcept(noexcept_callable<const F&, Args&&...>)
         {
             return std::invoke(f, (Args &&) args...);
         }
 
         template<typename... Args, REQUIRES(callable<F&&, Args...>)>
-            result_t<F&&, Args&&...>
+            constexpr result_t<F&&, Args&&...>
             operator()(Args&&... args) && noexcept(noexcept_callable<F&&, Args&&...>)
         {
             return std::invoke(std::move(f), (Args &&) args...);
         }
 
         template<typename... Args, REQUIRES(callable<const F&&, Args...>)>
-        result_t<const F&&, Args&&...>
+        constexpr result_t<const F&&, Args&&...>
         operator()(Args&&... args) const && noexcept(noexcept_callable<const F&&, Args&&...>)
         {
             return std::invoke(std::move(f), (Args &&) args...);
@@ -76,6 +77,19 @@ HASKELL_TRAITS_BEGIN
     func(F && f)->func<uncvref<F>>;
     template<typename F, REQUIRES(instantiation_of<func, F>)>
     func(F && f)->func<typename uncvref<F>::underlying_t>;
+
+    template<typename F>
+    using func_t = decltype(func{std::declval<F>()});
+
+// template<typename F, REQUIRES(!instantiation_of<func, F>)>
+// constexpr func<uncvref<F>> make_func(F && f) NOEXCEPT_RETURNS(func<uncvref<F>>((F &&) f));
+//
+// template<typename F, REQUIRES(instantiation_of<func, F>)>
+// constexpr func<typename uncvref<F>::underlying_t> make_func(F && f)
+//     NOEXCEPT_RETURNS(func<typename uncvref<F>::underlying_t>((F &&) f));
+//
+// template<typename F>
+// using func_t = decltype(make_func(std::declval<F>()));
 HASKELL_TRAITS_END
 
 #endif /* HASKELL_TRAITS_DETAIL_FUNC_HPP */
