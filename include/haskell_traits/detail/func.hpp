@@ -84,16 +84,6 @@ HASKELL_TRAITS_BEGIN
     template<typename F>
     using func_t = decltype(func{std::declval<F>()});
 
-    // template<typename F, REQUIRES(!instantiation_of<func, F>)>
-    // constexpr func<uncvref<F>> make_func(F && f) NOEXCEPT_RETURNS(func<uncvref<F>>((F &&) f));
-    //
-    // template<typename F, REQUIRES(instantiation_of<func, F>)>
-    // constexpr func<typename uncvref<F>::underlying_t> make_func(F && f)
-    //     NOEXCEPT_RETURNS(func<typename uncvref<F>::underlying_t>((F &&) f));
-    //
-    // template<typename F>
-    // using func_t = decltype(make_func(std::declval<F>()));
-
     template<typename... Funcs>
     struct merged : private Funcs...
     {

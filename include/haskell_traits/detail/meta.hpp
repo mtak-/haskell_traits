@@ -33,6 +33,10 @@
 #define REQUIRES_(...) std::enable_if_t<(__VA_ARGS__)>
 #define NOEXCEPT_RETURNS(...)                                                                      \
     noexcept(noexcept(__VA_ARGS__)) { return __VA_ARGS__; }
+#define RETURNS(...)                                                                               \
+    {                                                                                              \
+        return __VA_ARGS__;                                                                        \
+    }
 #define DECLTYPE_NOEXCEPT_RETURNS(...)                                                             \
     noexcept(noexcept(__VA_ARGS__))->decltype(__VA_ARGS__) { return __VA_ARGS__; }
 
@@ -172,6 +176,11 @@ HASKELL_TRAITS_BEGIN
     template<template<typename...> typename Desired, typename... Ts>
     using detected_or_unary_nonesuch_t
         = detected_or<unary_func_t<nonesuch2, nonesuch2>, Desired, Ts...>;
+
+    template<typename...>
+    struct type_list
+    {
+    };
 HASKELL_TRAITS_END
 
 #endif /* HASKELL_TRAITS_DETAIL_META_HPP */

@@ -43,19 +43,20 @@ static_assert(!ht::functor_of<int&&, int&&>);
 static_assert(!ht::monad<int&&>);
 static_assert(!ht::monad_of<int&&, int&&>);
 
+using namespace haskell_traits::operators;
+
 template<typename G, REQUIRES(ht::monad_of<G, int>)>
 auto bindShowInt(G&& g)
 {
     using rebound = ht::uncvref<ht::rebind<G, std::string>>;
-    return ht::mbind(g, [](int x) -> rebound { return ht::apure(std::to_string(x)); });
+    return g >> [](int x) -> rebound { return ht::apure(std::to_string(x)); };
 }
 
 template<typename G, REQUIRES(ht::monad<G>)>
 auto bindShowSizeof(G&& g)
 {
     using rebound = ht::uncvref<ht::rebind<G, std::string>>;
-    return ht::mbind(g,
-                     [](const auto& x) -> rebound { return ht::apure(std::to_string(sizeof(x))); });
+    return g >> [](const auto& x) -> rebound { return ht::apure(std::to_string(sizeof(x))); };
 }
 
 struct bz
@@ -85,6 +86,17 @@ void test3()
     CHECK(*w == nullptr);
     CHECK(*m != nullptr);
     CHECK(**m == 5);
+
+    {
+        std::vector                   x{0, 1, 2};
+        auto                          y = std::move(x) >> [](int x) { return x + 1; };
+        std::vector<int>              z = x >> [](int x) { return std::vector{x + 2}; };
+        std::vector<std::vector<int>> w = x >> [](int x) { return std::vector{x + 2}; };
+        static_assert(std::is_same_v<decltype(y), std::vector<int>>);
+        CHECK(y == std::vector{1, 2, 3});
+        CHECK(z == std::vector{2, 3, 4});
+        CHECK(w == std::vector<std::vector<int>>{{2}, {3}, {4}});
+    }
 }
 
 void test()
