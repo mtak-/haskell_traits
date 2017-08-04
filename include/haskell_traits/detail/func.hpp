@@ -4,6 +4,8 @@
 #include <haskell_traits/detail/meta.hpp>
 
 HASKELL_TRAITS_DETAIL_BEGIN
+    // modified from cppreference on aug 3, 2017:
+    // http://en.cppreference.com/w/cpp/utility/functional/invoke
     template<typename T>
     constexpr bool is_reference_wrapper_v = instantiation_of<std::reference_wrapper, T>;
 
@@ -79,34 +81,20 @@ HASKELL_TRAITS_DETAIL_BEGIN
         {
         }
 
-        // TODO: add support for finals class types taking explicit template parameters
-        template<typename... Args, REQUIRES(callable<F&, Args...>)>
-            constexpr result_t<F&, Args&&...>
-            operator()(Args&&... args) & noexcept(noexcept_callable<F&, Args&&...>)
-        {
-            return haskell_traits::invoke(f, (Args &&) args...);
-        }
+#define HASKELL_TRAITS_CALL_OP(cvref)                                                              \
+    template<typename... Args, REQUIRES(callable<F cvref, Args...>)>                               \
+    constexpr result_t<F cvref, Args&&...> operator()(Args&&... args)                              \
+        cvref noexcept(noexcept_callable<F cvref, Args&&...>)                                      \
+    {                                                                                              \
+        return haskell_traits::invoke(static_cast<F cvref>(f), (Args &&) args...);                 \
+    }                                                                                              \
+        /**/
 
-        template<typename... Args, REQUIRES(callable<const F&, Args...>)>
-        constexpr result_t<const F&, Args&&...>
-        operator()(Args&&... args) const & noexcept(noexcept_callable<const F&, Args&&...>)
-        {
-            return haskell_traits::invoke(f, (Args &&) args...);
-        }
-
-        template<typename... Args, REQUIRES(callable<F&&, Args...>)>
-            constexpr result_t<F&&, Args&&...>
-            operator()(Args&&... args) && noexcept(noexcept_callable<F&&, Args&&...>)
-        {
-            return haskell_traits::invoke(std::move(f), (Args &&) args...);
-        }
-
-        template<typename... Args, REQUIRES(callable<const F&&, Args...>)>
-        constexpr result_t<const F&&, Args&&...>
-        operator()(Args&&... args) const && noexcept(noexcept_callable<const F&&, Args&&...>)
-        {
-            return haskell_traits::invoke(std::move(f), (Args &&) args...);
-        }
+        HASKELL_TRAITS_CALL_OP(&)
+        HASKELL_TRAITS_CALL_OP(&&)
+        HASKELL_TRAITS_CALL_OP(const&)
+        HASKELL_TRAITS_CALL_OP(const&&)
+#undef HASKELL_TRAITS_CALL_OP
     };
 HASKELL_TRAITS_DETAIL_END
 
@@ -132,7 +120,25 @@ HASKELL_TRAITS_BEGIN
     func(F && f)->func<typename uncvref<F>::underlying_t>;
 
     template<typename F>
-    using func_t = decltype(func{std::declval<F>()});
+    using func_t = decltype(func(std::declval<F>()));
+
+    template<typename... Fs>
+    struct merged : private Fs...
+    {
+        static_assert((is_func<Fs> && ...));
+
+        template<typename... Fs_In, REQUIRES((std::is_constructible_v<Fs, Fs_In&&> && ...))>
+        constexpr merged(Fs_In&&... fs) noexcept(
+            (std::is_nothrow_constructible_v<Fs, Fs_In&&> && ...))
+            : Fs((Fs_In)fs)...
+        {
+        }
+
+        using Fs::operator()...;
+    };
+
+    template<typename... Fs>
+    merged(Fs && ...)->merged<func_t<Fs>...>;
 
     template<typename T>
     struct expected_result
@@ -147,198 +153,54 @@ HASKELL_TRAITS_DETAIL_BEGIN
             Func,
             Args...> && std::is_convertible_v<detected_or<nonesuch, result_t, Func, Args...>, Expected>>{};
 
-    template<typename Func, typename... Funcs>
-    struct Constraint
-    {
-        template<typename Expected, typename F, typename... Args>
-        static inline constexpr auto callable_count
-            = (int(callable_returns<Expected, as_same_cvref<Funcs, F>, Args...>) + ... + 0)
-              + (int(callable_returns<Expected,
-                                      as_same_cvref<Funcs, F>,
-                                      expected_result<Expected>,
-                                      Args...>)
-                 + ...
-                 + 0);
-
-        template<typename F, typename... Args>
-        static inline constexpr auto callable_count_strict
-            = (int(callable<as_same_cvref<Funcs, F>, Args...>) + ... + 0);
-
-        template<typename Expected, typename F, typename... Args>
-        static inline constexpr auto can_call
-            = callable_count<Expected, F, Args...> == 1
-              && callable_returns<Expected, as_same_cvref<Func, F>, Args...>;
-
-        template<typename Expected, typename F, typename... Args>
-        static inline constexpr auto can_call_expected
-            = callable_count<Expected, F, Args...> == 1
-              && callable_returns<Expected,
-                                  as_same_cvref<Func, F>,
-                                  expected_result<Expected>,
-                                  Args...>;
-
-        template<typename F, typename... Args>
-        static inline constexpr auto can_call_strict
-            = callable_count_strict<F, Args...> == 1 && callable<as_same_cvref<Func, F>, Args...>;
-    };
-
-    template<typename Constraint, typename Expected, typename F, typename... Args>
-    inline constexpr auto constrained_can_call
-        = Constraint::template can_call<Expected, F, Args...>;
-
-    template<typename Constraint, typename Expected, typename F, typename... Args>
-    inline constexpr auto constrained_can_call_expected
-        = Constraint::template can_call_expected<Expected, F, Args...>;
-
-    template<typename Constraint, typename F, typename... Args>
-    inline constexpr auto constrained_can_call_strict
-        = Constraint::template can_call_strict<F, Args...>;
-
-    // TODO: doesn't quite pick the correct ref qualified member functions
-    // just because callable_count_ > 1 doesn't mean that there's ambiguity
-    // deciding which function to call is hard tho...
-    template<typename F, typename Constraint>
+    template<typename F>
     struct overload_return_member : private F
     {
         static_assert(is_func<F>);
 
         using F::F;
 
-        template<typename Expected,
-                 typename... Args,
-                 REQUIRES(constrained_can_call<Constraint, Expected, F&, Args&&...>)>
-            constexpr result_t<F&, Args&&...> operator()(expected_result<Expected>, Args&&... args)
-            & noexcept(noexcept(Expected(static_cast<F&> (*this)((Args &&) args...))))
-        {
-            return static_cast<F&>(*this)((Args &&) args...);
-        }
+#define HASKELL_TRAITS_CALL_OP(cvref)                                                              \
+    template<typename Expected,                                                                    \
+             typename... Args,                                                                     \
+             REQUIRES(callable_returns<Expected, F cvref, Args&&...>)>                             \
+    constexpr result_t<F cvref, Args&&...> operator()(expected_result<Expected>, Args&&... args)   \
+        cvref noexcept(noexcept(Expected(static_cast<F cvref>(*this)((Args &&) args...))))         \
+    {                                                                                              \
+        return static_cast<F cvref>(*this)((Args &&) args...);                                     \
+    }                                                                                              \
+        /**/
 
-        template<typename Expected,
-                 typename... Args,
-                 REQUIRES(constrained_can_call<Constraint, Expected, F&&, Args&&...>)>
-            constexpr result_t<F&&, Args&&...> operator()(expected_result<Expected>, Args&&... args)
-            && noexcept(noexcept(Expected(std::move(static_cast<F&>(*this))((Args &&) args...))))
-        {
-            return std::move(static_cast<F&>(*this))((Args &&) args...);
-        }
+        HASKELL_TRAITS_CALL_OP(&)
+        HASKELL_TRAITS_CALL_OP(&&)
+        HASKELL_TRAITS_CALL_OP(const&)
+        HASKELL_TRAITS_CALL_OP(const&&)
+#undef HASKELL_TRAITS_CALL_OP
 
-        template<typename Expected,
-                 typename... Args,
-                 REQUIRES(constrained_can_call<Constraint, Expected, const F&, Args&&...>)>
-        constexpr result_t<const F&, Args&&...>
-        operator()(expected_result<Expected>, Args&&... args) const & noexcept(
-            noexcept(Expected(static_cast<const F&> (*this)((Args &&) args...))))
-        {
-            return static_cast<const F&>(*this)((Args &&) args...);
-        }
-
-        template<typename Expected,
-                 typename... Args,
-                 REQUIRES(constrained_can_call<Constraint, Expected, const F&&, Args&&...>)>
-        constexpr result_t<const F&&, Args&&...>
-        operator()(expected_result<Expected>, Args&&... args) const && noexcept(
-            noexcept(Expected(std::move(static_cast<const F&>(*this))((Args &&) args...))))
-        {
-            return std::move(static_cast<const F&>(*this))((Args &&) args...);
-        }
-
-        template<typename Expected,
-                 typename... Args,
-                 REQUIRES(constrained_can_call_expected<Constraint, Expected, F&, Args&&...>)>
-            constexpr result_t<F&, expected_result<Expected>, Args&&...>
-            operator()(expected_result<Expected> e, Args&&... args)
-            & noexcept(noexcept(Expected(static_cast<F&> (*this)(e, (Args &&) args...))))
-        {
-            return static_cast<F&>(*this)(e, (Args &&) args...);
-        }
-
-        template<typename Expected,
-                 typename... Args,
-                 REQUIRES(constrained_can_call_expected<Constraint, Expected, F&&, Args&&...>)>
-            constexpr result_t<F&&, expected_result<Expected>, Args&&...>
-            operator()(expected_result<Expected> e, Args&&... args)
-            && noexcept(noexcept(Expected(std::move(static_cast<F&>(*this))(e, (Args &&) args...))))
-        {
-            return std::move(static_cast<F&>(*this))(e, (Args &&) args...);
-        }
-
-        template<typename Expected,
-                 typename... Args,
-                 REQUIRES(constrained_can_call_expected<Constraint, Expected, const F&, Args&&...>)>
-        constexpr result_t<const F&, expected_result<Expected>, Args&&...>
-        operator()(expected_result<Expected> e, Args&&... args) const & noexcept(
-            noexcept(Expected(static_cast<const F&> (*this)(e, (Args &&) args...))))
-        {
-            return static_cast<const F&>(*this)(e, (Args &&) args...);
-        }
-
-        template<
-            typename Expected,
-            typename... Args,
-            REQUIRES(constrained_can_call_expected<Constraint, Expected, const F&&, Args&&...>)>
-        constexpr result_t<const F&&, expected_result<Expected>, Args&&...>
-        operator()(expected_result<Expected> e, Args&&... args) const && noexcept(
-            noexcept(Expected(std::move(static_cast<const F&>(*this))(e, (Args &&) args...))))
-        {
-            return std::move(static_cast<const F&>(*this))(e, (Args &&) args...);
-        }
-
-        template<typename... Args, REQUIRES(constrained_can_call_strict<Constraint, F&, Args&&...>)>
-            constexpr result_t<F&, Args&&...> operator()(Args&&... args)
-            & noexcept(noexcept(static_cast<F&> (*this)((Args &&) args...)))
-        {
-            return static_cast<F&>(*this)((Args &&) args...);
-        }
-
-        template<typename... Args,
-                 REQUIRES(constrained_can_call_strict<Constraint, F&&, Args&&...>)>
-            constexpr result_t<F&&, Args&&...> operator()(Args&&... args)
-            && noexcept(noexcept(std::move(static_cast<F&>(*this))((Args &&) args...)))
-        {
-            return std::move(static_cast<F&>(*this))((Args &&) args...);
-        }
-
-        template<typename... Args,
-                 REQUIRES(constrained_can_call_strict<Constraint, const F&, Args&&...>)>
-        constexpr result_t<const F&, Args&&...> operator()(Args&&... args) const & noexcept(
-            noexcept(static_cast<const F&> (*this)((Args &&) args...)))
-        {
-            return static_cast<const F&>(*this)((Args &&) args...);
-        }
-
-        template<typename... Args,
-                 REQUIRES(constrained_can_call_strict<Constraint, const F&&, Args&&...>)>
-        constexpr result_t<const F&&, Args&&...> operator()(Args&&... args) const && noexcept(
-            noexcept(std::move(static_cast<const F&>(*this))((Args &&) args...)))
-        {
-            return std::move(static_cast<const F&>(*this))((Args &&) args...);
-        }
+        using F::operator();
     };
 HASKELL_TRAITS_DETAIL_END
 
 HASKELL_TRAITS_BEGIN
     template<typename... Funcs>
-    struct overload_return
-        : private detail::overload_return_member<Funcs, detail::Constraint<Funcs, Funcs...>>...
+    struct overload_return : private detail::overload_return_member<Funcs>...
     {
         template<typename... Funcs_In,
                  REQUIRES((std::is_constructible_v<Funcs, Funcs_In&&> && ...))>
         constexpr overload_return(Funcs_In&&... fs) noexcept(
             (std::is_nothrow_constructible_v<Funcs, Funcs_In&&> && ...))
-            : detail::overload_return_member<Funcs, detail::Constraint<Funcs, Funcs...>>(
-                  (Funcs_In &&) fs)...
+            : detail::overload_return_member<Funcs>((Funcs_In &&) fs)...
         {
         }
 
-        using detail::overload_return_member<Funcs, detail::Constraint<Funcs, Funcs...>>::
-        operator()...;
+        using detail::overload_return_member<Funcs>::operator()...;
     };
 
     template<typename... Fs>
     overload_return(Fs && ... fs)->overload_return<func_t<uncvref<Fs>>...>;
 
     template<typename... Fs>
-    using overload_return_t = decltype(func{std::declval<Fs>()...});
+    using overload_return_t = decltype(overload_return(std::declval<Fs>()...));
 HASKELL_TRAITS_END
 
 #endif /* HASKELL_TRAITS_DETAIL_FUNC_HPP */

@@ -4,8 +4,32 @@
 
 namespace ht = haskell_traits;
 
+template<auto x>
+using idx = std::integral_constant<decltype(x), x>;
+
+struct a
+{
+    idx<0> operator()(int) &;
+    idx<1> operator()(int) const &;
+};
+
+struct b
+{
+    idx<2> operator()(int) &&;
+    idx<3> operator()(int) const &&;
+};
+
 int main()
 {
+    ht::overload_return g(a{}, b{});
+    static_assert(ht::callable<decltype(g)&, int>);
+    static_assert(ht::callable<decltype(g) const &, int>);
+    static_assert(std::is_same_v<ht::result_t<ht::uncvref<decltype(g)>&, int>, idx<0>>);
+    static_assert(std::is_same_v<ht::result_t<ht::uncvref<decltype(g)>&&, int>, idx<2>>);
+    static_assert(std::is_same_v<ht::result_t<ht::uncvref<decltype(g)> const&, int>, idx<1>>);
+    static_assert(std::is_same_v<ht::result_t<ht::uncvref<decltype(g)> const&&, int>, idx<3>>);
+    static_assert(ht::callable<decltype(g) const &, int>);
+
     constexpr ht::lazy_overload_return
                    f([](int x) { return x + 1; }, [](int x) noexcept { return std::to_string(x); });
     constexpr auto l = f(42);

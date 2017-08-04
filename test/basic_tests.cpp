@@ -139,7 +139,7 @@ void test2()
 }
 
 int main()
-{ //
+{
     test();
     test2();
     test3();
