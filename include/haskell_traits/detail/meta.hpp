@@ -181,6 +181,43 @@ HASKELL_TRAITS_BEGIN
     struct type_list
     {
     };
+
+    template<typename... Ts>
+    struct concat_;
+
+    template<>
+    struct concat_<> : id<type_list<>>
+    {
+    };
+
+    template<typename... Ts>
+    struct concat_<type_list<Ts...>> : id<type_list<Ts...>>
+    {
+    };
+
+    template<typename... Ts, typename... Us>
+    struct concat_<type_list<Ts...>, type_list<Us...>> : id<type_list<Ts..., Us...>>
+    {
+    };
+
+    template<typename T, typename U, typename V, typename... Rest>
+    struct concat_<T, U, V, Rest...> : concat_<_t<concat_<T, U>>, V, Rest...>
+    {
+    };
+
+    template<typename... Ts>
+    using concat = _t<concat_<Ts...>>;
+
+    template<typename L>
+    struct front_;
+
+    template<typename T, typename... Ts>
+    struct front_<type_list<T, Ts...>> : id<T>
+    {
+    };
+
+    template<typename L>
+    using front = _t<front_<L>>;
 HASKELL_TRAITS_END
 
 #endif /* HASKELL_TRAITS_DETAIL_META_HPP */

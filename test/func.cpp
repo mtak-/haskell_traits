@@ -21,7 +21,7 @@ struct b
 
 int main()
 {
-    ht::overload_return g(a{}, b{});
+    auto g = ht::merged_return(a{}, b{});
     static_assert(ht::callable<decltype(g)&, int>);
     static_assert(ht::callable<decltype(g) const &, int>);
     static_assert(std::is_same_v<ht::result_t<ht::uncvref<decltype(g)>&, int>, idx<0>>);
@@ -36,7 +36,7 @@ int main()
     constexpr int  x = l;
     static_assert(x == 43);
     static_assert(!noexcept(int(l)));
-    const std::string&& y(l);
+    const std::string& y(l);
     CHECK(y == "42");
     static_assert(noexcept((std::string &&)(l)));
     static_assert(std::is_convertible_v<decltype(l)&, std::string>);

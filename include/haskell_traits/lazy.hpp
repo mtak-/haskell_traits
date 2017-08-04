@@ -177,10 +177,10 @@ HASKELL_TRAITS_BEGIN
     lazy_helper(F && f, Args && ... args)->lazy_helper<uncvref<F>, uncvref<Args>...>;
 
     template<typename... Funcs>
-    struct lazy_overload_return : private overload_return<Funcs...>
+    struct lazy_overload_return : private merged_return_t<Funcs...>
     {
     private:
-        using base = overload_return<Funcs...>;
+        using base = merged_return_t<Funcs...>;
 
         template<typename B, typename... Args>
         using lazy_type = decltype(lazy(lazy_helper(std::declval<B>(), std::declval<Args>()...)));
@@ -189,7 +189,7 @@ HASKELL_TRAITS_BEGIN
         using strict_type = decltype(std::declval<B>()(std::declval<Args>()...));
 
     public:
-        using base::overload_return;
+        using merged_return_t<Funcs...>::merged::merged;
 
         template<typename... Args, REQUIRES(!callable<base&, Args&&...>)>
             constexpr lazy_type<base&, Args&&...> operator()(Args&&... args)
