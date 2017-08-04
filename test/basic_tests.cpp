@@ -46,32 +46,22 @@ static_assert(!ht::monad_of<int&&, int&&>);
 using namespace haskell_traits::operators;
 
 template<typename G, REQUIRES(ht::monad_of<G, int>)>
-auto bindShowInt(G&& g)
+constexpr auto bindShowInt(G&& g)
 {
     using rebound = ht::uncvref<ht::rebind<G, std::string>>;
     return g >> [](int x) -> rebound { return ht::apure(std::to_string(x)); };
 }
 
 template<typename G, REQUIRES(ht::monad<G>)>
-auto bindShowSizeof(G&& g)
+constexpr auto bindShowSizeof(G&& g)
 {
     using rebound = ht::uncvref<ht::rebind<G, std::string>>;
     return g >> [](const auto& x) -> rebound { return ht::apure(std::to_string(sizeof(x))); };
 }
 
-struct bz
-{
-    template<typename T, REQUIRES(std::is_same_v<T, int>)>
-    T operator()() const &&
-    {
-        return T{};
-    }
-};
-
 void test3()
 {
-    const auto       l = ht::lazy(bz{});
-    int              v = std::move(l);
+    int              v = 0;
     std::vector<int> u = ht::apure(v);
     CHECK(u == std::vector<int>{0});
 
@@ -131,26 +121,25 @@ auto z = fIntToString(std::vector<int>{1});
 
 void test2()
 {
-    std::optional<int>         x{4};
-    std::optional<std::string> xs = bindShowInt(x);
+    constexpr std::optional<int> x{4};
+    std::optional<std::string>   xs = bindShowInt(x);
     CHECK(xs == std::string("4"));
 
     xs = bindShowSizeof(x);
     CHECK(xs == std::to_string(sizeof(int)));
 
-    std::optional<float> b = ht::fmap(x, [](const int y) { return float(y); });
-    CHECK(b == float(4));
+    constexpr std::optional<float> b = ht::fmap(x, [](const int y) { return float(y); });
+    static_assert(b == float(4));
 
-    constexpr auto               foo = [](std::string_view x) constexpr->int { return x.size(); };
-    std::optional<decltype(foo)> f{foo};
-    std::optional<std::string_view> i{"foobar"};
-    CHECK(ht::aapply(i, f) == 6);
-    f = std::nullopt;
-    CHECK(ht::aapply(i, f) == std::nullopt);
+    constexpr auto foo = [](std::string_view x) constexpr->int { return x.size(); };
+    constexpr std::optional<decltype(foo)>    f{foo};
+    constexpr std::optional<std::string_view> i{"foobar"};
+    static_assert(ht::aapply(i, f) == 6);
+    static_assert(i >> f == 6);
 }
 
 int main()
-{
+{ //
     test();
     test2();
     test3();

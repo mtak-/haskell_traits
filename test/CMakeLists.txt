@@ -4,4 +4,5 @@ function(make_test t)
     add_test(test.${t} ${t})
 endfunction()
 
+make_test(func)
 make_test(basic_tests)

@@ -29,7 +29,7 @@ HASKELL_TRAITS_BEGIN
             Result result(typename Result::allocator_type(u.get_allocator()));
             result.reserve(u.size());
             for (auto&& elem : u)
-                result.push_back(std::invoke(f, static_cast<CVRefElem>(elem)));
+                result.push_back(haskell_traits::invoke(f, static_cast<CVRefElem>(elem)));
             return result;
         }
     };
@@ -57,7 +57,7 @@ HASKELL_TRAITS_BEGIN
             Result result;
             for (auto&& f : fs)
                 for (auto&& u : us)
-                    result.push_back(std::invoke(f, u));
+                    result.push_back(haskell_traits::invoke(f, u));
             return result;
         }
     };

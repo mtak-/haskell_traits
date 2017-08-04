@@ -23,7 +23,7 @@ HASKELL_TRAITS_BEGIN
         {
             if (u == std::nullopt)
                 return std::nullopt;
-            return std::invoke((F &&) f, *(U &&) u);
+            return haskell_traits::invoke((F &&) f, *(U &&) u);
         }
     };
 
@@ -43,7 +43,7 @@ HASKELL_TRAITS_BEGIN
         aapply(U&& u, F&& f) noexcept(noexcept(Result(std::invoke(*(F&&)f, *(U&&)u))))
         {
             if (u && f)
-                return std::invoke(*(F &&) f, *(U &&) u);
+                return haskell_traits::invoke(*(F &&) f, *(U &&) u);
             return std::nullopt;
         }
     };
@@ -56,7 +56,7 @@ HASKELL_TRAITS_BEGIN
         mbind(U&& u, F&& f) noexcept(noexcept(std::invoke((F &&) f, *(U&&)u)))
         {
             if (u != std::nullopt)
-                return std::invoke((F &&) f, *(U &&) u);
+                return haskell_traits::invoke((F &&) f, *(U &&) u);
             return std::nullopt;
         }
     };

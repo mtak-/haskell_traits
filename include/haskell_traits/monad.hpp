@@ -65,41 +65,9 @@ HASKELL_TRAITS_BEGIN
     inline constexpr auto monad_of = std::bool_constant<monad<T, F> && is_bound_to<T, C>>{};
 HASKELL_TRAITS_END
 
-HASKELL_TRAITS_DETAIL_BEGIN
-    inline constexpr auto generic_map_apply_bind_impl
-        = merged{func_return{fmap}, func_return{aapply}, func_return{mbind}};
-HASKELL_TRAITS_DETAIL_END
-
 HASKELL_TRAITS_BEGIN
-    struct gmap_fn
-    {
-        template<typename T, typename F>
-        static inline constexpr int callable_count
-            = int(callable<const fmap_fn&, T&&, F&&>) + int(callable<const aapply_fn&, T&&, F&&>)
-              + int(callable<const mbind_fn&, T&&, F&&>);
-
-        template<typename T, typename F, REQUIRES(callable_count<T&&, F&&>> 1)>
-        constexpr auto operator()(T&& t, F&& f) const DECLTYPE_NOEXCEPT_RETURNS(
-            lazy(lazy_helper(detail::generic_map_apply_bind_impl, (T &&) t, (F &&) f)));
-
-        template<typename T,
-                 typename F,
-                 REQUIRES(callable_count<T&&, F&&> == 1 && callable<const fmap_fn&, T&&, F&&>)>
-        constexpr auto
-        operator()(T&& t, F&& f) const DECLTYPE_NOEXCEPT_RETURNS(fmap((T &&) t, (F &&) f));
-
-        template<typename T,
-                 typename F,
-                 REQUIRES(callable_count<T&&, F&&> == 1 && callable<const aapply_fn&, T&&, F&&>)>
-        constexpr auto
-        operator()(T&& t, F&& f) const DECLTYPE_NOEXCEPT_RETURNS(aapply((T &&) t, (F &&) f));
-
-        template<typename T,
-                 typename F,
-                 REQUIRES(callable_count<T&&, F&&> == 1 && callable<const mbind_fn&, T&&, F&&>)>
-        constexpr auto
-        operator()(T&& t, F&& f) const DECLTYPE_NOEXCEPT_RETURNS(mbind((T &&) t, (F &&) f));
-    } inline constexpr gmap{};
+    inline constexpr auto gmap = lazy_overload_return(fmap, aapply, mbind);
+    using gmap_fn              = uncvref<decltype(gmap)>;
 
     inline namespace operators
     {

@@ -40,6 +40,13 @@ HASKELL_TRAITS_BEGIN
                  typename U,
                  REQUIRES(apurable<T>&& is_bound_to<T, U>),
                  typename Impl = applicative_impl<uncvref<T>>>
+        constexpr auto operator()(expected_result<T>, U&& u) const
+            DECLTYPE_NOEXCEPT_RETURNS(Impl::apure((U &&) u));
+
+        template<typename T,
+                 typename U,
+                 REQUIRES(apurable<T>&& is_bound_to<T, U>),
+                 typename Impl = applicative_impl<uncvref<T>>>
         constexpr auto operator()(U&& u) const DECLTYPE_NOEXCEPT_RETURNS(Impl::apure((U &&) u));
     } inline constexpr apure_strict{};
 
