@@ -35,16 +35,20 @@ HASKELL_TRAITS_BEGIN
         using const_rvalue_ref = const L&&;
 
         template<typename T, typename ref_type>
-        static inline constexpr auto                   can_call_overload
-            = callable<ref_type, expected_result<T>>&& detail::is_convertible_no_rvalue_to_lvalue_v<
-                detected_or<nonesuch, result_t, ref_type, expected_result<T>>,
-                T>;
+        static inline constexpr auto can_call_overload = std::bool_constant<
+            callable<
+                ref_type,
+                expected_result<
+                    T>> && detail::is_convertible_no_rvalue_to_lvalue_v<detected_or<nonesuch, result_t, ref_type, expected_result<T>>, T>>{};
 
+        // clang-format off
+        // clang format really sucks here
         template<typename T, typename ref_type>
         static inline constexpr auto                   can_call_overload_
-            = callable<ref_type, expected_result<T>>&& detail::is_convertible_no_rvalue_to_lvalue_v<
+            = std::bool_constant<callable<ref_type, expected_result<T>>&& detail::is_convertible_no_rvalue_to_lvalue_v<
                   detected_or<nonesuch, result_t, ref_type, expected_result<T>>,
-                  T> && !std::is_reference_v<T> && !std::is_reference_v<detected_or<nonesuch&, result_t, ref_type, expected_result<T>>> && !std::is_const_v<T>;
+                  T> && !std::is_reference_v<T> && !std::is_reference_v<detected_or<nonesuch&, result_t, ref_type, expected_result<T>>> && !std::is_const_v<T>>{};
+        // clang-format on
 
     public:
         using underlying_t = L;
@@ -55,122 +59,28 @@ HASKELL_TRAITS_BEGIN
         {
         }
 
-        template<typename T, REQUIRES(can_call_overload_<T, lvalue_ref>)>
-            constexpr operator T()
-            & noexcept(noexcept(static_cast<T>(std::declval<lvalue_ref>()(expected_result<T>{}))))
-        {
-            return static_cast<lvalue_ref>(*this)(expected_result<T>{});
-        }
+#define HASKELL_TRAITS_CALL_OP(trait, t_cvref, cvref)                                              \
+    template<typename T, REQUIRES(trait<T t_cvref, L cvref>)>                                      \
+    constexpr operator T t_cvref() cvref noexcept(                                                 \
+        noexcept(static_cast<T t_cvref>(std::declval<L cvref>()(expected_result<T t_cvref>{}))))   \
+    {                                                                                              \
+        return static_cast<L cvref>(*this)(expected_result<T t_cvref>{});                          \
+    }                                                                                              \
+/**/
+#define HASKELL_TRAITS_CALL_OP2(trait, t_cvref)                                                    \
+    HASKELL_TRAITS_CALL_OP(trait, t_cvref, &)                                                      \
+    HASKELL_TRAITS_CALL_OP(trait, t_cvref, &&)                                                     \
+    HASKELL_TRAITS_CALL_OP(trait, t_cvref, const&)                                                 \
+    HASKELL_TRAITS_CALL_OP(trait, t_cvref, const&&)                                                \
+        /**/
 
-        template<typename T, REQUIRES(can_call_overload_<T, rvalue_ref>)>
-            constexpr operator T()
-            && noexcept(noexcept(static_cast<T>(std::declval<rvalue_ref>()(expected_result<T>{}))))
-        {
-            return std::move(static_cast<lvalue_ref>(*this))(expected_result<T>{});
-        }
-
-        template<typename T, REQUIRES(can_call_overload_<T, const_lvalue_ref>)>
-        constexpr operator T() const & noexcept(
-            noexcept(static_cast<T>(std::declval<const_lvalue_ref>()(expected_result<T>{}))))
-        {
-            return static_cast<const_lvalue_ref>(*this)(expected_result<T>{});
-        }
-
-        template<typename T, REQUIRES(can_call_overload_<T, const_rvalue_ref>)>
-        constexpr operator T() const && noexcept(
-            noexcept(static_cast<T>(std::declval<const_rvalue_ref>()(expected_result<T>{}))))
-        {
-            return std::move(static_cast<const_lvalue_ref>(*this))(expected_result<T>{});
-        }
-
-        template<typename T, REQUIRES(can_call_overload<T&, lvalue_ref>)>
-            constexpr operator T&()
-            & noexcept(noexcept(static_cast<T&>(std::declval<lvalue_ref>()(expected_result<T&>{}))))
-        {
-            return static_cast<lvalue_ref>(*this)(expected_result<T&>{});
-        }
-
-        template<typename T, REQUIRES(can_call_overload<T&, rvalue_ref>)>
-            constexpr operator T&()
-            && noexcept(
-                   noexcept(static_cast<T&>(std::declval<rvalue_ref>()(expected_result<T&>{}))))
-        {
-            return std::move(static_cast<lvalue_ref>(*this))(expected_result<T&>{});
-        }
-
-        template<typename T, REQUIRES(can_call_overload<T&, const_lvalue_ref>)>
-        constexpr operator T&() const & noexcept(
-            noexcept(static_cast<T&>(std::declval<const_lvalue_ref>()(expected_result<T&>{}))))
-        {
-            return static_cast<const_lvalue_ref>(*this)(expected_result<T&>{});
-        }
-
-        template<typename T, REQUIRES(can_call_overload<T&, const_rvalue_ref>)>
-        constexpr operator T&() const && noexcept(
-            noexcept(static_cast<T&>(std::declval<const_rvalue_ref>()(expected_result<T&>{}))))
-        {
-            return std::move(static_cast<const_lvalue_ref>(*this))(expected_result<T&>{});
-        }
-
-        template<typename T, REQUIRES(can_call_overload<T&&, lvalue_ref>)>
-            constexpr operator T &&()
-            & noexcept(
-                  noexcept(static_cast<T&&>(std::declval<lvalue_ref>()(expected_result<T&&>{}))))
-        {
-            return static_cast<lvalue_ref>(*this)(expected_result<T&&>{});
-        }
-
-        template<typename T, REQUIRES(can_call_overload<T&&, rvalue_ref>)>
-            constexpr operator T &&()
-            && noexcept(
-                   noexcept(static_cast<T&&>(std::declval<rvalue_ref>()(expected_result<T&&>{}))))
-        {
-            return std::move(static_cast<lvalue_ref>(*this))(expected_result<T&&>{});
-        }
-
-        template<typename T, REQUIRES(can_call_overload<T&&, const_lvalue_ref>)>
-        constexpr operator T &&() const & noexcept(
-            noexcept(static_cast<T&&>(std::declval<const_lvalue_ref>()(expected_result<T&&>{}))))
-        {
-            return static_cast<const_lvalue_ref>(*this)(expected_result<T&&>{});
-        }
-
-        template<typename T, REQUIRES(can_call_overload<T&&, const_rvalue_ref>)>
-        constexpr operator T &&() const && noexcept(
-            noexcept(static_cast<T&&>(std::declval<const_rvalue_ref>()(expected_result<T&&>{}))))
-        {
-            return std::move(static_cast<const_lvalue_ref>(*this))(expected_result<T&&>{});
-        }
-
-        template<typename T, REQUIRES(can_call_overload<const T&&, lvalue_ref>)>
-            constexpr operator const T &&()
-            & noexcept(noexcept(
-                  static_cast<const T&&>(std::declval<lvalue_ref>()(expected_result<const T&&>{}))))
-        {
-            return static_cast<lvalue_ref>(*this)(expected_result<const T&&>{});
-        }
-
-        template<typename T, REQUIRES(can_call_overload<const T&&, rvalue_ref>)>
-            constexpr operator const T &&()
-            && noexcept(noexcept(static_cast<const T&&>(
-                   std::declval<rvalue_ref>()(expected_result<const T&&>{}))))
-        {
-            return std::move(static_cast<lvalue_ref>(*this))(expected_result<const T&&>{});
-        }
-
-        template<typename T, REQUIRES(can_call_overload<const T&&, const_lvalue_ref>)>
-        constexpr operator const T &&() const & noexcept(noexcept(
-            static_cast<const T&&>(std::declval<const_lvalue_ref>()(expected_result<const T&&>{}))))
-        {
-            return static_cast<const_lvalue_ref>(*this)(expected_result<const T&&>{});
-        }
-
-        template<typename T, REQUIRES(can_call_overload<const T&&, const_rvalue_ref>)>
-        constexpr operator const T &&() const && noexcept(noexcept(
-            static_cast<const T&&>(std::declval<const_rvalue_ref>()(expected_result<const T&&>{}))))
-        {
-            return std::move(static_cast<const_lvalue_ref>(*this))(expected_result<const T&&>{});
-        }
+        HASKELL_TRAITS_CALL_OP2(can_call_overload_, /**/)
+        HASKELL_TRAITS_CALL_OP2(can_call_overload, &)
+        HASKELL_TRAITS_CALL_OP2(can_call_overload, &&)
+        HASKELL_TRAITS_CALL_OP2(can_call_overload, const&)
+        HASKELL_TRAITS_CALL_OP2(can_call_overload, const&&)
+#undef HASKELL_TRAITS_CALL_OP2
+#undef HASKELL_TRAITS_CALL_OP
     };
 
     template<typename F, REQUIRES(!instantiation_of<lazy, F>)>
