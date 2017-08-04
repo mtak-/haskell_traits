@@ -140,6 +140,9 @@ HASKELL_TRAITS_BEGIN
     template<typename... Fs>
     merged(Fs && ...)->merged<func_t<Fs>...>;
 
+    template<typename... Fs>
+    using merged_t = decltype(merged(std::declval<Fs>()...));
+
     template<typename T>
     struct expected_result
     {
@@ -165,7 +168,7 @@ HASKELL_TRAITS_DETAIL_BEGIN
              typename... Args,                                                                     \
              REQUIRES(callable_returns<Expected, F cvref, Args&&...>)>                             \
     constexpr result_t<F cvref, Args&&...> operator()(expected_result<Expected>, Args&&... args)   \
-        cvref noexcept(noexcept(Expected(static_cast<F cvref>(*this)((Args &&) args...))))         \
+        cvref noexcept(noexcept(static_cast<F cvref>(*this)((Args &&) args...)))                   \
     {                                                                                              \
         return static_cast<F cvref>(*this)((Args &&) args...);                                     \
     }                                                                                              \
