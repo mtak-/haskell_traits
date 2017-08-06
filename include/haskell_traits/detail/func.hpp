@@ -56,9 +56,61 @@ HASKELL_TRAITS_BEGIN
 HASKELL_TRAITS_END
 
 HASKELL_TRAITS_DETAIL_BEGIN
-    template<typename F, typename = void>
-    struct func_impl : private F
+    template<typename F>
+    using underlying_t_ = typename uncvref<F>::underlying_t;
+HASKELL_TRAITS_DETAIL_END
+
+HASKELL_TRAITS_BEGIN
+    template<typename F>
+    using underlying_t = detected_or<F, detail::underlying_t_, F>;
+HASKELL_TRAITS_END
+
+HASKELL_TRAITS_DETAIL_BEGIN
+    template<typename F, typename... Args>
+    using mem_possible_results_t = typename uncvref<F>::template possible_results_t<F, Args...>;
+
+    template<typename F, typename... Args>
+    using result_list_t = type_list<result_t<F, Args...>>;
+
+    template<typename F, typename... Args>
+    using possible_results_t_ = detected_or<detected_or<type_list<>, result_list_t, F, Args...>,
+                                            mem_possible_results_t,
+                                            F,
+                                            Args...>;
+HASKELL_TRAITS_DETAIL_END
+
+HASKELL_TRAITS_BEGIN
+    template<typename F, typename... Args>
+    using possible_results_t = detail::possible_results_t_<F, Args...>;
+
+    template<typename F>
+    inline constexpr auto satisfies_func = std::is_class_v<F>;
+
+    struct unknown_result
     {
+        template<typename T>
+        operator T() noexcept;
+        template<typename T>
+        operator T&() noexcept;
+        template<typename T>
+        operator T &&() noexcept;
+    };
+HASKELL_TRAITS_END
+
+HASKELL_TRAITS_DETAIL_BEGIN
+    template<
+        typename F,
+        bool = std::is_class_v<F> && !std::is_final_v<F>,
+        bool
+        = std::is_class_v<
+              F> || std::is_member_object_pointer_v<F> || std::is_member_function_pointer_v<F> || std::is_function_v<std::remove_pointer_t<uncvref<F>>>>
+    struct func_impl;
+
+    template<typename F>
+    struct func_impl<F, true, true> : private F
+    {
+        using underlying_t = underlying_t<F>;
+
         template<typename... Args, REQUIRES(std::is_constructible_v<F, Args&&...>)>
         constexpr func_impl(Args&&... args) noexcept(std::is_nothrow_constructible_v<F, Args&&...>)
             : F((Args &&) args...)
@@ -69,24 +121,27 @@ HASKELL_TRAITS_DETAIL_BEGIN
     };
 
     template<typename F>
-    struct func_impl<F, REQUIRES_(!std::is_class_v<F> || std::is_final_v<F>)>
+    struct func_impl<F, false, true>
     {
+        using underlying_t = underlying_t<std::decay_t<F>>;
+
     private:
-        F f;
+        underlying_t f;
 
     public:
-        template<typename... Args, REQUIRES(std::is_constructible_v<F, Args&&...>)>
-        constexpr func_impl(Args&&... args) noexcept(std::is_nothrow_constructible_v<F, Args&&...>)
+        template<typename... Args, REQUIRES(std::is_constructible_v<underlying_t, Args&&...>)>
+        constexpr func_impl(Args&&... args) noexcept(
+            std::is_nothrow_constructible_v<underlying_t, Args&&...>)
             : f((Args &&) args...)
         {
         }
 
 #define HASKELL_TRAITS_CALL_OP(cvref)                                                              \
-    template<typename... Args, REQUIRES(callable<F cvref, Args...>)>                               \
-    constexpr result_t<F cvref, Args&&...> operator()(Args&&... args)                              \
-        cvref noexcept(noexcept_callable<F cvref, Args&&...>)                                      \
+    template<typename... Args, REQUIRES(callable<underlying_t cvref, Args...>)>                    \
+    constexpr result_t<underlying_t cvref, Args&&...> operator()(Args&&... args)                   \
+        cvref noexcept(noexcept_callable<underlying_t cvref, Args&&...>)                           \
     {                                                                                              \
-        return haskell_traits::invoke(static_cast<F cvref>(f), (Args &&) args...);                 \
+        return haskell_traits::invoke(static_cast<underlying_t cvref>(f), (Args &&) args...);      \
     }                                                                                              \
         /**/
 
@@ -100,47 +155,15 @@ HASKELL_TRAITS_DETAIL_END
 
 HASKELL_TRAITS_BEGIN
     template<typename F>
-    struct func_traits
-    {
-        using underlying_t = F;
-
-        template<typename F0, typename... Args>
-        using possible_results_t = type_list<result_t<F0, Args...>>;
-
-        static constexpr inline bool satisfies_func = false;
-    };
-
-    template<typename F>
-    struct func_traits<const F> : func_traits<F>
-    {
-    };
-
-    template<typename F>
-    struct func_traits<F&> : func_traits<F>
-    {
-    };
-
-    template<typename F>
-    struct func_traits<F&&> : func_traits<F>
-    {
-    };
-
-    template<typename F>
-    using underlying_t = typename func_traits<F>::underlying_t;
-
-    template<typename F, typename... Args>
-    using possible_results_t = typename func_traits<F>::template possible_results_t<F, Args...>;
-
-    template<typename F>
-    inline constexpr auto satisfies_func = func_traits<F>::satisfies_func;
-
-    template<typename F>
     struct func : private detail::func_impl<F>
     {
         static_assert(!std::is_reference_v<F>);
         static_assert(!instantiation_of<func, F>);
 
-        using underlying_t = F;
+        using underlying_t = typename detail::func_impl<F>::underlying_t;
+
+        template<typename F0, typename... Args>
+        using possible_results_t = possible_results_t<as_same_cvref<underlying_t, F0>, Args...>;
 
         using detail::func_impl<F>::func_impl;
         using detail::func_impl<F>::operator();
@@ -155,28 +178,23 @@ HASKELL_TRAITS_BEGIN
     func(F && f)->func<typename uncvref<F>::underlying_t>;
 
     template<typename F>
-    using func_t = std::conditional_t<satisfies_func<F>, F, decltype(func(std::declval<F>()))>;
-
-    template<typename F>
-    struct func_traits<func<F>>
-    {
-        using underlying_t = F;
-
-        template<typename F0, typename... Args>
-        using possible_results_t = possible_results_t<as_same_cvref<F, F0>, Args...>;
-
-        static constexpr inline bool satisfies_func = true;
-    };
+    using func_t = std::
+        conditional_t<satisfies_func<uncvref<F>>, uncvref<F>, decltype(func(std::declval<F>()))>;
 
     template<typename... Fs>
     struct merged : private Fs...
     {
         static_assert((satisfies_func<Fs> && ...));
 
-        template<typename... Fs_In, REQUIRES((std::is_constructible_v<Fs, Fs_In&&> && ...))>
+        template<typename F0, typename... Args>
+        using possible_results_t = concat<possible_results_t<as_same_cvref<Fs, F0>, Args...>...>;
+
+        template<typename... Fs_In,
+                 REQUIRES(sizeof...(Fs_In) == sizeof...(Fs)),
+                 REQUIRES((std::is_constructible_v<Fs, Fs_In&&> && ...))>
         constexpr merged(Fs_In&&... fs) noexcept(
             (std::is_nothrow_constructible_v<Fs, Fs_In&&> && ...))
-            : Fs((Fs_In)fs)...
+            : Fs((Fs_In &&) fs)...
         {
         }
 
@@ -196,18 +214,9 @@ HASKELL_TRAITS_BEGIN
     merged(const merged<Fs...>&)->merged<Fs...>;
 
     template<typename... Fs>
-    using merged_t = decltype(merged(std::declval<Fs>()...));
-
-    template<typename... Fs>
-    struct func_traits<merged<Fs...>>
-    {
-        using underlying_t = merged<Fs...>;
-
-        template<typename F0, typename... Args>
-        using possible_results_t = concat<possible_results_t<as_same_cvref<Fs, F0>, Args...>...>;
-
-        static constexpr inline bool satisfies_func = true;
-    };
+    using merged_t = std::conditional_t<sizeof...(Fs) != 1,
+                                        decltype(merged(std::declval<Fs>()...)),
+                                        func_t<detected_or<void (*)(), front, type_list<Fs...>>>>;
 
     template<typename T>
     struct expected_result
@@ -228,6 +237,11 @@ HASKELL_TRAITS_BEGIN
     struct func_return : private F
     {
         static_assert(satisfies_func<F>);
+
+        using underlying_t = underlying_t<F>;
+
+        template<typename F0, typename... Args>
+        using possible_results_t = possible_results_t<as_same_cvref<underlying_t, F0>, Args...>;
 
         template<typename... Args, REQUIRES(std::is_constructible_v<F, Args&&...>)>
         constexpr func_return(Args&&... args) noexcept(
@@ -272,25 +286,41 @@ HASKELL_TRAITS_BEGIN
     template<typename F>
     using func_return_t = decltype(func_return(std::declval<F>()));
 
-    template<typename F>
-    struct func_traits<func_return<F>>
+    template<typename... Fs>
+    struct merged_return : private merged_t<func_return_t<Fs>...>
     {
-        using underlying_t = underlying_t<F>;
+    private:
+        using base = merged_t<func_return_t<Fs>...>;
+        static_assert((satisfies_func<Fs> && ...));
 
+    public:
+        using underlying_t = underlying_t<base>;
         template<typename F0, typename... Args>
-        using possible_results_t = possible_results_t<as_same_cvref<F, F0>, Args...>;
+        using possible_results_t = possible_results_t<as_same_cvref<base, F0>, Args...>;
 
-        static constexpr inline bool satisfies_func = true;
+        template<typename... Fs_In,
+                 REQUIRES(sizeof...(Fs_In) == sizeof...(Fs)),
+                 REQUIRES(std::is_constructible_v<base, Fs_In&&...>)>
+        constexpr merged_return(Fs_In&&... fs) noexcept(
+            std::is_nothrow_constructible_v<base, Fs_In&&...>)
+            : base((Fs_In &&) fs...)
+        {
+        }
+
+        using base::operator();
     };
 
-    struct merged_return_fn
-    {
-        template<typename... Fs,
-                 REQUIRES(std::is_constructible_v<merged_t<func_return_t<Fs>...>,
-                                                  func_return_t<Fs>&&...>)>
-        constexpr merged_t<func_return_t<Fs>...> operator()(Fs&&... fs) const
-            NOEXCEPT_RETURNS(merged_t<func_return_t<Fs>...>(func_return_t<Fs>((Fs &&) fs)...));
-    } inline constexpr merged_return{};
+    template<typename F>
+    inline constexpr auto is_merged_return = instantiation_of<merged_return, F>;
+
+    template<typename... Fs, REQUIRES(sizeof...(Fs) != 1 || !(is_merged_return<Fs> && ...))>
+    merged_return(Fs && ...)->merged_return<std::decay_t<Fs>...>;
+
+    template<typename... Fs>
+    merged_return(merged_return<Fs...> &&)->merged_return<Fs...>;
+
+    template<typename... Fs>
+    merged_return(const merged_return<Fs...>&)->merged_return<Fs...>;
 
     template<typename... Fs>
     using merged_return_t = decltype(merged_return(std::declval<Fs>()...));

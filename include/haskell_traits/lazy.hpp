@@ -133,52 +133,38 @@ HASKELL_TRAITS_BEGIN
         {
         }
 
-        template<typename Expected>
-            constexpr my_result_t<F&, Expected> operator()(expected_result<Expected> e)
-            & noexcept(noexcept(call(static_cast<F&>(*this), e, static_cast<tuple_type&>(*this))))
-        {
-            return call(static_cast<F&>(*this), e, static_cast<tuple_type&>(*this));
-        }
-
-        template<typename Expected>
-            constexpr my_result_t<F&&, Expected> operator()(expected_result<Expected> e)
-            && noexcept(noexcept(call(std::move(static_cast<F&>(*this)),
-                                      e,
-                                      std::move(static_cast<tuple_type&>(*this)))))
-        {
-            return call(std::move(static_cast<F&>(*this)),
-                        e,
-                        std::move(static_cast<tuple_type&>(*this)));
-        }
-
-        template<typename Expected>
-        constexpr my_result_t<const F&, Expected>
-        operator()(expected_result<Expected> e) const & noexcept(
-            noexcept(call(static_cast<const F&>(*this), e, static_cast<const tuple_type&>(*this))))
-        {
-            return call(static_cast<const F&>(*this), e, static_cast<const tuple_type&>(*this));
-        }
-
-        template<typename Expected>
-        constexpr my_result_t<const F&&, Expected> operator()(expected_result<Expected> e)
-            const && noexcept(noexcept(call(std::move(static_cast<const F&>(*this)),
-                                            e,
-                                            std::move(static_cast<const tuple_type&>(*this)))))
-        {
-            return call(std::move(static_cast<const F&>(*this)),
-                        e,
-                        std::move(static_cast<const tuple_type&>(*this)));
-        }
+#define HASKELL_TRAITS_CALL_OP(cvref)                                                              \
+    template<typename Expected>                                                                    \
+    constexpr my_result_t<F cvref, Expected> operator()(expected_result<Expected> e)               \
+        cvref noexcept(                                                                            \
+            noexcept(call(static_cast<F cvref>(*this), e, static_cast<tuple_type cvref>(*this))))  \
+    {                                                                                              \
+        return call(static_cast<F cvref>(*this), e, static_cast<tuple_type cvref>(*this));         \
+    }                                                                                              \
+        /**/
+        HASKELL_TRAITS_CALL_OP(&)
+        HASKELL_TRAITS_CALL_OP(&&)
+        HASKELL_TRAITS_CALL_OP(const&)
+        HASKELL_TRAITS_CALL_OP(const&&)
+#undef HASKELL_TRAITS_CALL_OP
     };
 
-    template<typename F, typename... Args>
+    template<typename F, typename... Args, REQUIRES(!instantiation_of<lazy_helper, F>)>
     lazy_helper(F && f, Args && ... args)->lazy_helper<uncvref<F>, uncvref<Args>...>;
 
-    template<typename... Funcs>
-    struct lazy_merged_return : private merged_return_t<Funcs...>
+    template<typename F, typename... Args>
+    lazy_helper(lazy_helper<F, Args...> && f)->lazy_helper<F, Args...>;
+
+    template<typename F, typename... Args>
+    lazy_helper(const lazy_helper<F, Args...>& f)->lazy_helper<F, Args...>;
+
+    template<typename F>
+    struct lazy_func_return : private F
     {
     private:
-        using base = merged_return_t<Funcs...>;
+        static_assert(satisfies_func<F>);
+
+        using base = F;
 
         template<typename B, typename... Args>
         using lazy_type = decltype(lazy(lazy_helper(std::declval<B>(), std::declval<Args>()...)));
@@ -187,47 +173,51 @@ HASKELL_TRAITS_BEGIN
         using strict_type = decltype(std::declval<B>()(std::declval<Args>()...));
 
     public:
-        using merged_return_t<Funcs...>::merged::merged;
+        template<typename... Args, REQUIRES(std::is_constructible_v<F, Args&&...>)>
+        constexpr lazy_func_return(Args&&... args) noexcept(
+            std::is_nothrow_constructible_v<F, Args&&...>)
+            : F((Args &&) args...)
+        {
+        }
 
-        template<typename... Args, REQUIRES(!callable<base&, Args&&...>)>
-            constexpr lazy_type<base&, Args&&...> operator()(Args&&... args)
-            & NOEXCEPT_RETURNS(lazy(lazy_helper(static_cast<base&>(*this), (Args &&) args...)));
+#define HASKELL_TRAITS_CALL_OP(cvref)                                                              \
+    template<typename... Args,                                                                     \
+             REQUIRES(!callable<base cvref,                                                        \
+                                Args&&...> && !empty<possible_results_t<base cvref, Args&&...>>)>  \
+    constexpr lazy_type<base cvref, Args&&...> operator()(Args&&... args) cvref NOEXCEPT_RETURNS(  \
+        lazy(lazy_helper(static_cast<base cvref>(*this), (Args &&) args...)));                     \
+        /**/
+        HASKELL_TRAITS_CALL_OP(&)
+        HASKELL_TRAITS_CALL_OP(&&)
+        HASKELL_TRAITS_CALL_OP(const&)
+        HASKELL_TRAITS_CALL_OP(const&&)
+#undef HASKELL_TRAITS_CALL_OP
 
-        template<typename... Args, REQUIRES(!callable<base&&, Args&&...>)>
-            constexpr lazy_type<base&&, Args&&...> operator()(Args&&... args)
-            && NOEXCEPT_RETURNS(lazy(lazy_helper(std::move(static_cast<base&>(*this)),
-                                                 (Args &&) args...)));
+#define HASKELL_TRAITS_CALL_OP(cvref)                                                              \
+    template<typename... Args, REQUIRES(callable<base cvref, Args&&...>)>                          \
+    constexpr strict_type<base cvref, Args&&...> operator()(Args&&... args) cvref                  \
+                                                 NOEXCEPT_RETURNS(static_cast<base cvref> (*this)((Args &&) args...));
+        /**/
+        HASKELL_TRAITS_CALL_OP(&)
+        HASKELL_TRAITS_CALL_OP(&&)
+        HASKELL_TRAITS_CALL_OP(const&)
+        HASKELL_TRAITS_CALL_OP(const&&)
 
-        template<typename... Args, REQUIRES(!callable<const base&, Args&&...>)>
-        constexpr lazy_type<const base&, Args&&...>
-        operator()(Args&&... args) const & NOEXCEPT_RETURNS(
-            lazy(lazy_helper(static_cast<const base&>(*this), (Args &&) args...)));
-
-        template<typename... Args, REQUIRES(!callable<const base&&, Args&&...>)>
-        constexpr lazy_type<const base&&, Args&&...>
-        operator()(Args&&... args) const && NOEXCEPT_RETURNS(
-            lazy(lazy_helper(std::move(static_cast<const base&>(*this)), (Args &&) args...)));
-
-        template<typename... Args, REQUIRES(callable<base&, Args&&...>)>
-            constexpr strict_type<base&, Args&&...> operator()(Args&&... args)
-            & NOEXCEPT_RETURNS(static_cast<base&> (*this)((Args &&) args...));
-
-        template<typename... Args, REQUIRES(callable<base&&, Args&&...>)>
-            constexpr strict_type<base&&, Args&&...> operator()(Args&&... args)
-            && NOEXCEPT_RETURNS(std::move(static_cast<base&>(*this))((Args &&) args...));
-
-        template<typename... Args, REQUIRES(callable<const base&, Args&&...>)>
-        constexpr strict_type<const base&, Args&&...> operator()(Args&&... args)
-            const & NOEXCEPT_RETURNS(static_cast<const base&> (*this)((Args &&) args...));
-
-        template<typename... Args, REQUIRES(callable<const base&&, Args&&...>)>
-        constexpr strict_type<const base&&, Args&&...>
-        operator()(Args&&... args) const && NOEXCEPT_RETURNS(
-            std::move(static_cast<const base&>(*this))((Args &&) args...));
+#undef HASKELL_TRAITS_CALL_OP
     };
 
+    template<typename F, REQUIRES(!instantiation_of<lazy_func_return, F>)>
+    lazy_func_return(F && f)->lazy_func_return<uncvref<F>>;
+
+    template<typename F>
+    lazy_func_return(lazy_func_return<F> && f)->lazy_func_return<F>;
+
+    template<typename F>
+    lazy_func_return(const lazy_func_return<F>& f)->lazy_func_return<F>;
+
     template<typename... Fs>
-    lazy_merged_return(Fs && ... fs)->lazy_merged_return<func_t<Fs>...>;
+    constexpr auto lazy_merged_return(Fs && ... fs)
+        DECLTYPE_NOEXCEPT_RETURNS(lazy_func_return(merged_return((Fs &&) fs...)))
 HASKELL_TRAITS_END
 
 #endif /* HASKELL_TRAITS_LAZY_HPP */

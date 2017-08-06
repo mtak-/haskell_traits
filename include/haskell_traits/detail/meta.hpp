@@ -182,6 +182,22 @@ HASKELL_TRAITS_BEGIN
     {
     };
 
+    template<typename>
+    struct empty_;
+
+    template<typename Arg, typename... Args>
+    struct empty_<type_list<Arg, Args...>> : std::false_type
+    {
+    };
+
+    template<>
+    struct empty_<type_list<>> : std::true_type
+    {
+    };
+
+    template<typename L>
+    inline constexpr auto empty = _t<empty_<L>>{};
+
     template<typename... Ts>
     struct concat_;
 
