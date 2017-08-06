@@ -30,7 +30,7 @@ int main()
     static_assert(std::is_same_v<ht::result_t<ht::uncvref<decltype(g)> const&&, int>, idx<3>>);
     static_assert(ht::callable<decltype(g) const &, int>);
 
-    constexpr ht::lazy_overload_return
+    constexpr ht::lazy_merged_return
                    f([](int x) { return x + 1; }, [](int x) noexcept { return std::to_string(x); });
     constexpr auto l = f(42);
     constexpr int  x = l;

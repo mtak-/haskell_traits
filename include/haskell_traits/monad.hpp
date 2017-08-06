@@ -66,7 +66,7 @@ HASKELL_TRAITS_BEGIN
 HASKELL_TRAITS_END
 
 HASKELL_TRAITS_BEGIN
-    inline constexpr auto gmap = lazy_overload_return(fmap, aapply, mbind);
+    inline constexpr auto gmap = lazy_merged_return(fmap, aapply, mbind);
     using gmap_fn              = uncvref<decltype(gmap)>;
 
     inline namespace operators

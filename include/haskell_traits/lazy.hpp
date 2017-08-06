@@ -94,8 +94,6 @@ HASKELL_TRAITS_BEGIN
     template<typename F, typename... Args>
     struct lazy_helper : private F, private std::tuple<Args...>
     {
-        static_assert(sizeof...(Args) > 0);
-
     private:
         using tuple_type = std::tuple<Args...>;
 
@@ -173,11 +171,11 @@ HASKELL_TRAITS_BEGIN
         }
     };
 
-    template<typename F, typename... Args, REQUIRES(sizeof...(Args) > 0)>
+    template<typename F, typename... Args>
     lazy_helper(F && f, Args && ... args)->lazy_helper<uncvref<F>, uncvref<Args>...>;
 
     template<typename... Funcs>
-    struct lazy_overload_return : private merged_return_t<Funcs...>
+    struct lazy_merged_return : private merged_return_t<Funcs...>
     {
     private:
         using base = merged_return_t<Funcs...>;
@@ -229,7 +227,7 @@ HASKELL_TRAITS_BEGIN
     };
 
     template<typename... Fs>
-    lazy_overload_return(Fs && ... fs)->lazy_overload_return<func_t<Fs>...>;
+    lazy_merged_return(Fs && ... fs)->lazy_merged_return<func_t<Fs>...>;
 HASKELL_TRAITS_END
 
 #endif /* HASKELL_TRAITS_LAZY_HPP */
