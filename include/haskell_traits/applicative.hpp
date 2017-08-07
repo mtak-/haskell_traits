@@ -53,8 +53,8 @@ HASKELL_TRAITS_BEGIN
     struct apure_fn
     {
         template<typename U>
-        constexpr auto operator()(U&& u) const
-            DECLTYPE_NOEXCEPT_RETURNS(lazy(lazy_helper(apure_strict, (U &&) u)));
+        constexpr auto
+        operator()(U&& u) const DECLTYPE_NOEXCEPT_RETURNS(lazy(apure_strict, (U &&) u));
     } inline constexpr apure{};
 
     struct aapply_fn
