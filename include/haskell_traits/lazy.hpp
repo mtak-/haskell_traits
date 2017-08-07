@@ -26,8 +26,6 @@ HASKELL_TRAITS_DETAIL_BEGIN
     private:
         using tuple_type = std::tuple<Args...>;
 
-        static inline constexpr auto iseq = std::make_index_sequence<sizeof...(Args)>{};
-
         template<typename F0, typename Expected>
         using my_result_t = decltype(detail::call(std::declval<F0>(),
                                                   std::declval<expected_result<Expected>>(),

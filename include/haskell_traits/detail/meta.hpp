@@ -224,6 +224,17 @@ HASKELL_TRAITS_BEGIN
     template<typename... Ts>
     using concat = _t<concat_<Ts...>>;
 
+    template<template<typename...> typename Op, typename L>
+    struct transform_;
+
+    template<template<typename...> typename Op, typename... Args>
+    struct transform_<Op, type_list<Args...>> : id<type_list<Op<Args>...>>
+    {
+    };
+
+    template<template<typename...> typename Op, typename L>
+    using transform = _t<transform_<Op, L>>;
+
     template<typename L>
     struct front_;
 
@@ -234,6 +245,17 @@ HASKELL_TRAITS_BEGIN
 
     template<typename L>
     using front = _t<front_<L>>;
+
+    template<template<typename...> typename F, typename L>
+    struct unpack_;
+
+    template<template<typename...> typename F, typename... Args>
+    struct unpack_<F, type_list<Args...>> : id<F<Args...>>
+    {
+    };
+
+    template<template<typename...> typename F, typename L>
+    using unpack = _t<unpack_<F, L>>;
 HASKELL_TRAITS_END
 
 #endif /* HASKELL_TRAITS_DETAIL_META_HPP */

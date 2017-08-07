@@ -44,7 +44,7 @@ HASKELL_TRAITS_END
     static_assert(::haskell_traits::is_detected<::haskell_traits::rebind,                          \
                                                 __VA_ARGS__,                                       \
                                                 ::haskell_traits::nonesuch2>,                      \
-                  #__VA_ARGS__ " does not correctly implement rebind_impl::rebind_to");            \
+                  #__VA_ARGS__ " does not correctly implement rebind_impl::rebind");               \
     static_assert(::haskell_traits::rebindable<__VA_ARGS__>,                                       \
                   #__VA_ARGS__ " does not satisfy rebindable")
 
