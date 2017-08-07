@@ -19,9 +19,11 @@ struct b
     idx<3> operator()(int) const &&;
 };
 
+constexpr a c(int) { return {}; }
+
 int main()
 {
-    auto g = ht::merged_return(a{}, b{});
+    auto g = ht::merged_return(a{}, b{}, &c);
     static_assert(ht::callable<decltype(g)&, int>);
     static_assert(ht::callable<decltype(g) const &, int>);
     static_assert(std::is_same_v<ht::result_t<ht::uncvref<decltype(g)>&, int>, idx<0>>);
@@ -30,10 +32,12 @@ int main()
     static_assert(std::is_same_v<ht::result_t<ht::uncvref<decltype(g)> const&&, int>, idx<3>>);
     static_assert(ht::callable<decltype(g) const &, int>);
 
-    constexpr auto f = ht::lazy_merged_return([](int x) { return x + 1; },
-                                              [](int x) noexcept { return std::to_string(x); });
-    constexpr auto l = f(42);
-    constexpr int  x = l;
+    constexpr auto f       = ht::lazy_merged_return([](int x) { return x + 1; },
+                                              [](int x) noexcept { return std::to_string(x); },
+                                              c);
+    constexpr auto l       = f(42);
+    constexpr int  x       = l;
+    constexpr a    foobarz = l;
     static_assert(x == 43);
     static_assert(!noexcept(int(l)));
     const std::string& y(l);

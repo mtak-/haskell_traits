@@ -159,12 +159,10 @@ HASKELL_TRAITS_BEGIN
     lazy_helper(const lazy_helper<F, Args...>& f)->lazy_helper<F, Args...>;
 
     template<typename F>
-    struct lazy_func_return : private F
+    struct lazy_func_return : private func_t<F>
     {
     private:
-        static_assert(satisfies_func<F>);
-
-        using base = F;
+        using base = func_t<F>;
 
         template<typename B, typename... Args>
         using lazy_type = decltype(lazy(lazy_helper(std::declval<B>(), std::declval<Args>()...)));
@@ -173,10 +171,10 @@ HASKELL_TRAITS_BEGIN
         using strict_type = decltype(std::declval<B>()(std::declval<Args>()...));
 
     public:
-        template<typename... Args, REQUIRES(std::is_constructible_v<F, Args&&...>)>
+        template<typename... Args, REQUIRES(std::is_constructible_v<base, Args&&...>)>
         constexpr lazy_func_return(Args&&... args) noexcept(
-            std::is_nothrow_constructible_v<F, Args&&...>)
-            : F((Args &&) args...)
+            std::is_nothrow_constructible_v<base, Args&&...>)
+            : base((Args &&) args...)
         {
         }
 
@@ -207,7 +205,7 @@ HASKELL_TRAITS_BEGIN
     };
 
     template<typename F, REQUIRES(!instantiation_of<lazy_func_return, F>)>
-    lazy_func_return(F && f)->lazy_func_return<uncvref<F>>;
+    lazy_func_return(F && f)->lazy_func_return<std::decay_t<F>>;
 
     template<typename F>
     lazy_func_return(lazy_func_return<F> && f)->lazy_func_return<F>;
@@ -215,9 +213,37 @@ HASKELL_TRAITS_BEGIN
     template<typename F>
     lazy_func_return(const lazy_func_return<F>& f)->lazy_func_return<F>;
 
+    template<typename F>
+    using lazy_func_return_t = decltype(lazy_func_return(std::declval<F>()));
+
     template<typename... Fs>
-    constexpr auto lazy_merged_return(Fs && ... fs)
-        DECLTYPE_NOEXCEPT_RETURNS(lazy_func_return(merged_return((Fs &&) fs...)))
+    struct lazy_merged_return : private lazy_func_return_t<merged_return_t<Fs...>>
+    {
+    private:
+        using base = lazy_func_return_t<merged_return_t<Fs...>>;
+
+    public:
+        template<typename... Fs_In,
+                 REQUIRES(sizeof...(Fs_In) == sizeof...(Fs)),
+                 REQUIRES(std::is_constructible_v<base, Fs_In&&...>)>
+        constexpr lazy_merged_return(Fs_In&&... fs) noexcept(
+            std::is_nothrow_constructible_v<base, Fs_In&&...>)
+            : base((Fs_In &&) fs...)
+        {
+        }
+
+        using base::operator();
+    };
+
+    template<typename... Fs,
+             REQUIRES(sizeof...(Fs) != 1 || (!instantiation_of<lazy_merged_return, Fs> && ...))>
+    lazy_merged_return(Fs && ... f)->lazy_merged_return<std::decay_t<Fs>...>;
+
+    template<typename F>
+    lazy_merged_return(lazy_merged_return<F> && f)->lazy_merged_return<F>;
+
+    template<typename F>
+    lazy_merged_return(const lazy_merged_return<F>& f)->lazy_merged_return<F>;
 HASKELL_TRAITS_END
 
 #endif /* HASKELL_TRAITS_LAZY_HPP */
